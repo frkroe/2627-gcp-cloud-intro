@@ -22,6 +22,44 @@ flowchart LR
 | **Message broker** (Pub/Sub) | A mailbox between programs. The orders app drops a note (“order 42 placed”); the delivery app picks it up when it can. |
 | **Delivery app** | A program that takes each new order and simulates its delivery. |
 
+## The shop in the cloud (after Lab 2)
+
+In Lab 1 every box above is a container on your laptop. In Lab 2 we move the shop to Google Cloud, and each piece runs on a **different service model**:
+
+```mermaid
+flowchart LR
+    U(["You<br/>curl · order_burst.py"]) -- "HTTPS<br/>POST /orders" --> API
+
+    subgraph PaaS["PaaS · Cloud Run"]
+        API["orders-api"]
+    end
+
+    API -- publishes --> T1{{"order-events"}}
+
+    T1 -- "order-events-sub<br/>(pull)" --> VM
+    T1 -- "delivery-function-sub<br/>(push)" --> F
+
+    subgraph IaaS["IaaS · Compute Engine"]
+        VM["VM delivery-app<br/>Debian + Docker"]
+    end
+
+    subgraph FaaS["FaaS · Cloud Run functions"]
+        F["delivery-function"]
+    end
+
+    VM -- publishes --> T2{{"delivery-events"}}
+    F -- publishes --> T2
+```
+
+| Service model | What runs there | What **you** look after | Lab |
+|---|---|---|---|
+| **IaaS** | `delivery-app` on a virtual machine (Lab 4: a group of VMs across zones) | OS, Docker, disk, scaling, patches | 2.1, 3, 4 |
+| **PaaS** | `orders-api`, a container built from your source code | your code and a few settings | 2.2, 3, 4.4 |
+| **FaaS** | `delivery-function`, called once per order | one function | 2.3, 3 |
+| **SaaS** | nothing to deploy: Gmail, GitHub, Looker Studio… | only your data and settings | 2.4 |
+
+Pub/Sub itself is a fully managed Google service: you create topics and subscriptions, Google runs everything else. Both delivery consumers receive every order on purpose, so you can compare them in Lab 3.
+
 ## Labs
 
 | Day | # | Lab | Topics | Time |
