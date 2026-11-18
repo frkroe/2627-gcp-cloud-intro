@@ -1,0 +1,9 @@
+# Used by scripts/catch-up.sh: builds ecommerce/delivery_app/Dockerfile in Google Cloud
+# and pushes the image to Artifact Registry. _IMAGE is passed with --substitutions.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "delivery_app/Dockerfile", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"
+options:
+  logging: CLOUD_LOGGING_ONLY

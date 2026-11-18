@@ -1,0 +1,13 @@
+# Delivery VM: delivery-app only (consumes order-events, publishes delivery-events).
+# APP_IMAGE and PROJECT_ID come from the .env file written by deploy/startup.sh.
+services:
+  delivery-app:
+    image: ${APP_IMAGE}
+    container_name: delivery_app
+    environment:
+      PROJECT_ID: ${PROJECT_ID}
+      ORDERS_SUBSCRIPTION: order-events-sub
+      DELIVERY_TOPIC: delivery-events
+    logging:
+      driver: gcplogs             # send container logs to Cloud Logging
+    restart: unless-stopped

@@ -1,0 +1,12 @@
+# Personal configuration
+config.env
+
+# Never commit credentials
+*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+.DS_Store

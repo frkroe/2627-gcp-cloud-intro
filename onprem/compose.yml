@@ -1,0 +1,89 @@
+# "On-prem in a box": the whole e-commerce on your laptop.
+# Pub/Sub is replaced by the official local emulator: the application code is exactly the same.
+#   docker compose -f onprem/compose.yml up -d --build
+name: ecommerce-onprem
+
+x-app-env: &app-env
+  PROJECT_ID: local-onprem
+  PUBSUB_EMULATOR_HOST: pubsub:8085   # Google client libraries talk to the emulator instead of GCP
+
+services:
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --project=local-onprem --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8085"]
+      interval: 3s
+      retries: 20
+
+  pubsub-init:
+    image: curlimages/curl:latest
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        API=http://pubsub:8085/v1/projects/local-onprem
+        ok() { [ "$$1" = 200 ] || [ "$$1" = 409 ]; }   # 409 = already exists: fine
+        for t in order-events delivery-events; do
+          ok $$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$$API/topics/$$t") || exit 1
+          ok $$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$$API/subscriptions/$$t-sub" \
+                -H 'Content-Type: application/json' \
+                -d "{\"topic\": \"projects/local-onprem/topics/$$t\"}") || exit 1
+          echo "topic $$t and subscription $$t-sub ready"
+        done
+
+  operational_db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../ecommerce/orders_app/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ecommerce"]
+      interval: 3s
+      retries: 20
+
+  adminer:                            # web UI to browse the database: http://localhost:8080
+    image: adminer:latest
+    environment:
+      ADMINER_DEFAULT_SERVER: operational_db
+    ports:
+      - "8080:8080"
+    depends_on:
+      - operational_db
+
+  orders-app:
+    build:
+      context: ../ecommerce
+      dockerfile: orders_app/Dockerfile
+    environment:
+      <<: *app-env
+      HOST_IP: operational_db
+    depends_on:
+      operational_db:
+        condition: service_healthy
+      pubsub-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  delivery-app:
+    build:
+      context: ../ecommerce
+      dockerfile: delivery_app/Dockerfile
+    environment: *app-env
+    depends_on:
+      pubsub-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
