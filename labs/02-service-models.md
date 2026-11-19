@@ -75,6 +75,17 @@ gcloud run deploy orders-api \
 
 The first time, `gcloud` asks to create an Artifact Registry repository called `cloud-run-source-deploy` for the built images: answer **Y**. The build takes 2–3 minutes.
 
+> **No question, just an error** (`The artifact repository provided does not exist: .../cloud-run-source-deploy/orders-api`)? Your `gcloud` isn't allowed to ask questions in this terminal. Create the repository yourself, then run `gcloud run deploy` again:
+>
+> ```bash
+> gcloud artifacts repositories create cloud-run-source-deploy \
+>   --repository-format=docker \
+>   --location="$REGION" \
+>   --labels="${LABELS}"
+> ```
+>
+> Use exactly this name and region: `gcloud run deploy --source` looks for that repository.
+
 ```bash
 export ORDERS_API_URL=$(gcloud run services describe orders-api --region="$REGION" --format='value(status.url)')
 echo $ORDERS_API_URL
